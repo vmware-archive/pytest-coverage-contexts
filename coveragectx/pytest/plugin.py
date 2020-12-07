@@ -7,12 +7,15 @@ coveragectx.pytest.plugin
 
 PyTest Dynamic Coverage Contexts Plugin
 """
+import contextlib
 import logging
 import os
+import socket
+import time
 
 import attr
 import pytest
-import zmq.ssh
+import zmq
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +90,7 @@ class CoverageContextPlugin:
         if self.running is True:
             return
 
-        self.address = "tcp://127.0.0.1:{}".format(*zmq.ssh.tunnel.select_random_ports(1))
+        self.address = "tcp://127.0.0.1:{}".format(self.get_unused_localhost_port())
         log.debug("Starting %s", self)
         context = zmq.Context()
         pusher = context.socket(zmq.PUB)  # pylint: disable=no-member
@@ -108,9 +111,47 @@ class CoverageContextPlugin:
         log.debug("Stopping %s", self)
         self.running = False
         self.pusher.send_string("[{STOP}]")
-        self.pusher.close(1000)
+        self.pusher.close(1500)
         self.context.term()
         self.pusher = self.context = self.running = None
+
+    def get_unused_localhost_port(self, cached_seconds=10):
+        """
+        Return a random unused port on localhost
+        """
+        if not isinstance(cached_seconds, (int, float)):
+            raise RuntimeError(
+                "The value of 'cached_seconds' needs to be an integer or a float, not {}".format(
+                    type(cached_seconds)
+                )
+            )
+        if cached_seconds < 0:
+            raise RuntimeError(
+                "The value of 'cached_seconds' needs to be a positive number, not {}".format(
+                    cached_seconds
+                )
+            )
+        try:
+            generated_ports = self.get_unused_localhost_port.__used_ports__
+            # Cleanup ports. The idea behind this call is so that two consecutive calls to this
+            # function don't return the same port just because the first call hasn't actually started
+            # using the port.
+            # It also makes this cache invalid after <cached_seconds> second
+            for port in list(generated_ports):
+                if generated_ports[port] <= time.time():
+                    generated_ports.pop(port)
+        except AttributeError:
+            generated_ports = self.get_unused_localhost_port.__used_ports__ = {}
+
+        with contextlib.closing(
+            socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        ) as usock:
+            usock.bind(("127.0.0.1", 0))
+            port = usock.getsockname()[1]
+        if port not in generated_ports:
+            generated_ports[port] = time.time() + cached_seconds
+            return port
+        return self.get_unused_localhost_port(cached_seconds=cached_seconds)
 
 
 @pytest.hookimpl(trylast=True)
