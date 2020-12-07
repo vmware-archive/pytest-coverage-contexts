@@ -10,21 +10,23 @@ PyTest Dynamic Coverage Contexts Plugin
 import logging
 import os
 
+import attr
 import pytest
 import zmq.ssh
 
 log = logging.getLogger(__name__)
 
 
+@attr.s(kw_only=True, slots=True, hash=True)
 class CoverageContextPlugin:
     """
     PyTest Plugin implementation
     """
 
-    def __init__(self):
-        self.context = None
-        self.pusher = None
-        self.running = False
+    context = attr.ib(init=False, default=None, repr=False, hash=False)
+    pusher = attr.ib(init=False, default=None, repr=False, hash=False)
+    address = attr.ib(init=False, default=None)
+    running = attr.ib(init=False, default=False, hash=False)
 
     @pytest.hookimpl
     def pytest_collection(self):
@@ -72,11 +74,11 @@ class CoverageContextPlugin:
         """
         Send the new dynamic context to PULL'ers
         """
-        log.info("Switching to context: %s", context)
+        log.debug("Switching to context: %s", context)
         os.environ["COVERAGE_DYNAMIC_CONTEXT"] = context
         if self.pusher is not None:
             self.pusher.send_string(context)
-        log.info("Switched to context: %s", context)
+        log.debug("Switched to context: %s", context)
 
     def start(self):
         """
@@ -85,18 +87,16 @@ class CoverageContextPlugin:
         if self.running is True:
             return
 
-        log.info("Starting %s", self)
+        self.address = "tcp://127.0.0.1:{}".format(*zmq.ssh.tunnel.select_random_ports(1))
+        log.debug("Starting %s", self)
         context = zmq.Context()
         pusher = context.socket(zmq.PUB)  # pylint: disable=no-member
-        address = "tcp://127.0.0.1:{}".format(*zmq.ssh.tunnel.select_random_ports(1))
-        log.warning("Address: %s", address)
-        # address = "{}:{}".format(address, pusher.bind_to_random_port(address))
-        pusher.connect(address)
-        os.environ["COVERAGE_DYNAMIC_CONTEXT_ADDRESS"] = address
+        pusher.connect(self.address)
+        os.environ["COVERAGE_DYNAMIC_CONTEXT_ADDRESS"] = self.address
         self.context = context
         self.pusher = pusher
         self.running = True
-        log.info("%s is listening @ %s", self, address)
+        log.debug("%s is listening", self)
 
     def stop(self):
         """
@@ -105,7 +105,7 @@ class CoverageContextPlugin:
         if self.running is False:
             return
 
-        log.info("Stopping %s", self)
+        log.debug("Stopping %s", self)
         self.running = False
         self.pusher.send_string("[{STOP}]")
         self.pusher.close(1000)
@@ -120,7 +120,6 @@ def pytest_configure(config):
     """
     _plugin = CoverageContextPlugin()
     config.pluginmanager.register(_plugin, "coverage-context-plugin")
-    log.info("1")
 
 
 @pytest.hookimpl(tryfirst=True)

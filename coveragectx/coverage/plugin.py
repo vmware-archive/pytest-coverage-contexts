@@ -59,11 +59,11 @@ class DynamicContext(coverage.CoveragePlugin):  # pylint: disable=too-few-public
         context = zmq.Context()
         puller = context.socket(zmq.SUB)  # pylint: disable=not-callable,no-member
         puller.connect(self._push_address)
-        log.warning("Connected to: %s", self._push_address)
+        log.debug("Connected to: %s", self._push_address)
         try:
             while self._running.is_set():
                 context = puller.recv_string()
-                log.warning("New Context: %s", context)
+                log.debug("New Context: %s", context)
                 if context == "[{STOP}]":
                     break
                 if context == "[{NONE}]":
