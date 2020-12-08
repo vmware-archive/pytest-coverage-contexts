@@ -76,11 +76,10 @@ class CoverageContextPlugin:
         """
         Send the new dynamic context to PULL'ers
         """
-        log.debug("Switching to context: %s", context)
+        log.debug("Switching coverage context to: %s", context)
         os.environ["COVERAGE_DYNAMIC_CONTEXT"] = context
         if self.pusher is not None:
             self.pusher.send_string(context)
-        log.debug("Switched to context: %s", context)
 
     def start(self):
         """
@@ -90,7 +89,7 @@ class CoverageContextPlugin:
             return
 
         self.address = "tcp://127.0.0.1:{}".format(self.get_unused_localhost_port())
-        log.debug("Starting %s", self)
+        log.debug("%s is starting...", self)
         context = zmq.Context()
         pusher = context.socket(zmq.PUB)  # pylint: disable=no-member
         pusher.connect(self.address)
@@ -98,7 +97,7 @@ class CoverageContextPlugin:
         self.context = context
         self.pusher = pusher
         self.running = True
-        log.debug("%s is listening", self)
+        log.debug("%s started.", self)
 
     def stop(self):
         """
@@ -107,12 +106,13 @@ class CoverageContextPlugin:
         if self.running is False:
             return
 
-        log.debug("Stopping %s", self)
+        log.debug("%s is stopping...", self)
         self.running = False
         self.pusher.send_string("[{STOP}]")
         self.pusher.close(1500)
         self.context.term()
         self.pusher = self.context = self.running = None
+        log.debug("%s stopped.", self)
 
     @staticmethod
     def get_unused_localhost_port():
