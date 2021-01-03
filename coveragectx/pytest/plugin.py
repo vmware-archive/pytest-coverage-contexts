@@ -27,47 +27,71 @@ class CoverageContextPlugin:
     context_file_path = attr.ib()
     running = attr.ib(init=False, default=False, hash=False)
 
-    @pytest.hookimpl
+    @pytest.hookimpl(hookwrapper=True)
     def pytest_collection(self):
         """
         Perform the collection phase for the given session.
         """
-        self.switch_context("collection")
+        try:
+            self.switch_context("collection")
+            yield
+        finally:
+            self.switch_context(None)
 
-    @pytest.hookimpl
+    @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_logstart(self, nodeid):
         """
         Called at the start of running the runtest protocol for a single item.
         """
-        self.switch_context("{}|start".format(nodeid))
+        try:
+            self.switch_context("{}|start".format(nodeid))
+            yield
+        finally:
+            self.switch_context(None)
 
-    @pytest.hookimpl
+    @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_setup(self, item):
         """
         Called to perform the setup phase for a test item.
         """
-        self.switch_context("{}|setup".format(item.nodeid))
+        try:
+            self.switch_context("{}|setup".format(item.nodeid))
+            yield
+        finally:
+            self.switch_context(None)
 
-    @pytest.hookimpl
+    @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_call(self, item):
         """
         Called to run the test for test item (the call phase).
         """
-        self.switch_context("{}|call".format(item.nodeid))
+        try:
+            self.switch_context("{}|call".format(item.nodeid))
+            yield
+        finally:
+            self.switch_context(None)
 
-    @pytest.hookimpl
+    @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_teardown(self, item):
         """
         Called to perform the teardown phase for a test item.
         """
-        self.switch_context("{}|teardown".format(item.nodeid))
+        try:
+            self.switch_context("{}|teardown".format(item.nodeid))
+            yield
+        finally:
+            self.switch_context(None)
 
-    @pytest.hookimpl
+    @pytest.hookimpl(hookwrapper=True)
     def pytest_runtest_logfinish(self, nodeid):
         """
         Called at the end of running the runtest protocol for a single item.
         """
-        self.switch_context("{}|finish".format(nodeid))
+        try:
+            self.switch_context("{}|finish".format(nodeid))
+            yield
+        finally:
+            self.switch_context(None)
 
     def switch_context(self, context):
         """
@@ -75,7 +99,7 @@ class CoverageContextPlugin:
         """
         log.debug("Switching coverage context to: %s", context)
         with atomic_write(self.context_file_path, overwrite=True) as wfh:
-            wfh.write(context)
+            wfh.write(context or "")
 
 
 @pytest.hookimpl(trylast=True)
