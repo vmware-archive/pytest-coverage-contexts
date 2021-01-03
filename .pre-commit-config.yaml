@@ -46,6 +46,6 @@ repos:
     name: PyLint
     args: [--output-format=parseable, --rcfile=.pylintrc]
     additional_dependencies:
+    - atomicwrites
     - coverage >= 5.3
     - pytest>=6.1.0
-    - pyzmq

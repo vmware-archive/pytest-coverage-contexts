@@ -7,14 +7,13 @@ coveragectx.pytest.plugin
 
 PyTest Dynamic Coverage Contexts Plugin
 """
-import contextlib
 import logging
 import os
-import socket
+import tempfile
 
 import attr
 import pytest
-import zmq
+from atomicwrites import atomic_write
 
 log = logging.getLogger(__name__)
 
@@ -25,9 +24,7 @@ class CoverageContextPlugin:
     PyTest Plugin implementation
     """
 
-    context = attr.ib(init=False, default=None, repr=False, hash=False)
-    pusher = attr.ib(init=False, default=None, repr=False, hash=False)
-    address = attr.ib(init=False, default=None)
+    context_file_path = attr.ib(init=False, hash=False)
     running = attr.ib(init=False, default=False, hash=False)
 
     @pytest.hookimpl
@@ -77,9 +74,8 @@ class CoverageContextPlugin:
         Send the new dynamic context to PULL'ers
         """
         log.debug("Switching coverage context to: %s", context)
-        os.environ["COVERAGE_DYNAMIC_CONTEXT"] = context
-        if self.pusher is not None:
-            self.pusher.send_string(context)
+        with atomic_write(self.context_file_path, overwrite=True) as wfh:
+            wfh.write(context)
 
     def start(self):
         """
@@ -88,14 +84,10 @@ class CoverageContextPlugin:
         if self.running is True:
             return
 
-        self.address = "tcp://127.0.0.1:{}".format(self.get_unused_localhost_port())
+        handle, self.context_file_path = tempfile.mkstemp()
+        os.close(handle)
         log.debug("%s is starting...", self)
-        context = zmq.Context()
-        pusher = context.socket(zmq.PUB)  # pylint: disable=no-member
-        pusher.connect(self.address)
-        os.environ["COVERAGE_DYNAMIC_CONTEXT_ADDRESS"] = self.address
-        self.context = context
-        self.pusher = pusher
+        os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"] = self.context_file_path
         self.running = True
         log.debug("%s started.", self)
 
@@ -108,23 +100,8 @@ class CoverageContextPlugin:
 
         log.debug("%s is stopping...", self)
         self.running = False
-        self.pusher.send_string("[{STOP}]")
-        self.pusher.close(1500)
-        self.context.term()
-        self.pusher = self.context = self.running = None
+        os.unlink(self.context_file_path)
         log.debug("%s stopped.", self)
-
-    @staticmethod
-    def get_unused_localhost_port():
-        """
-        Return a random unused port on localhost
-        """
-        with contextlib.closing(
-            socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-        ) as usock:
-            usock.bind(("127.0.0.1", 0))
-            port = usock.getsockname()[1]
-            return port
 
 
 @pytest.hookimpl(trylast=True)
