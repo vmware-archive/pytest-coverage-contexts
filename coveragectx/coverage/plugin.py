@@ -9,6 +9,7 @@ Dynamic Context Coverage Plugin
 """
 import logging
 import os
+import tempfile
 
 import coverage
 
@@ -20,8 +21,11 @@ class DynamicContext(coverage.CoveragePlugin):  # pylint: disable=too-few-public
     Plugin implementation
     """
 
-    def __init__(self, context_file_path):
-        self._context_file_path = context_file_path
+    def __init__(self, context_file_path=None):
+        if context_file_path is None:
+            handle, context_file_path = tempfile.mkstemp()
+            os.close(handle)
+        self.context_file_path = context_file_path
 
     def dynamic_context(self, frame):  # pylint: disable=unused-argument
         """
@@ -35,7 +39,7 @@ class DynamicContext(coverage.CoveragePlugin):  # pylint: disable=too-few-public
         context should be started.
         """
         try:
-            with open(self._context_file_path) as rfh:
+            with open(self.context_file_path) as rfh:
                 context = rfh.read().strip() or None
         except FileNotFoundError:
             context = None
@@ -47,4 +51,8 @@ def coverage_init(reg, options):  # pylint: disable=unused-argument
     Register our plugin with coveragepy
     """
     if "COVERAGE_DYNAMIC_CONTEXT_FILE_PATH" in os.environ:
-        reg.add_dynamic_context(DynamicContext(os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"]))
+        dynamic_context = DynamicContext(os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"])
+    else:
+        dynamic_context = DynamicContext()
+        os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"] = dynamic_context.context_file_path
+    reg.add_dynamic_context(dynamic_context)

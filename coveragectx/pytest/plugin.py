@@ -24,7 +24,7 @@ class CoverageContextPlugin:
     PyTest Plugin implementation
     """
 
-    context_file_path = attr.ib(init=False, hash=False)
+    context_file_path = attr.ib()
     running = attr.ib(init=False, default=False, hash=False)
 
     @pytest.hookimpl
@@ -77,57 +77,27 @@ class CoverageContextPlugin:
         with atomic_write(self.context_file_path, overwrite=True) as wfh:
             wfh.write(context)
 
-    def start(self):
-        """
-        Start the plugin
-        """
-        if self.running is True:
-            return
-
-        handle, self.context_file_path = tempfile.mkstemp()
-        os.close(handle)
-        log.debug("%s is starting...", self)
-        os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"] = self.context_file_path
-        self.running = True
-        log.debug("%s started.", self)
-
-    def stop(self):
-        """
-        Stop the plugin
-        """
-        if self.running is False:
-            return
-
-        log.debug("%s is stopping...", self)
-        self.running = False
-        os.unlink(self.context_file_path)
-        log.debug("%s stopped.", self)
-
 
 @pytest.hookimpl(trylast=True)
 def pytest_configure(config):
     """
     Instantiate our plugin and register it
     """
-    _plugin = CoverageContextPlugin()
-    config.pluginmanager.register(_plugin, "coverage-context-plugin")
-
-
-@pytest.hookimpl(tryfirst=True)
-def pytest_sessionstart(session):
-    """
-    Start our plugin
-    """
-    _plugin = session.config.pluginmanager.get_plugin("coverage-context-plugin")
-    if _plugin:
-        _plugin.start()
+    context_file_path = os.environ.get("COVERAGE_DYNAMIC_CONTEXT_FILE_PATH")
+    if context_file_path is None:
+        handle, context_file_path = tempfile.mkstemp()
+        os.close(handle)
+        os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"] = context_file_path
+    config.pluginmanager.register(
+        CoverageContextPlugin(context_file_path), "coverage-context-plugin"
+    )
 
 
 @pytest.hookimpl(trylast=True)
-def pytest_sessionfinish(session):
+def pytest_sessionfinish():
     """
-    Stop our plugin
+    Cleanup
     """
-    _plugin = session.config.pluginmanager.get_plugin("coverage-context-plugin")
-    if _plugin:
-        _plugin.stop()
+    context_file_path = os.environ.get("COVERAGE_DYNAMIC_CONTEXT_FILE_PATH")
+    if context_file_path is not None:
+        os.unlink(context_file_path)
