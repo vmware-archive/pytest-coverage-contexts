@@ -89,7 +89,7 @@ def pytest_configure(config):
         os.close(handle)
         os.environ["COVERAGE_DYNAMIC_CONTEXT_FILE_PATH"] = context_file_path
     config.pluginmanager.register(
-        CoverageContextPlugin(context_file_path), "coverage-context-plugin"
+        CoverageContextPlugin(context_file_path=context_file_path), "coverage-context-plugin"
     )
 
 
