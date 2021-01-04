@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 import datetime
 import json
 import os
@@ -6,9 +7,8 @@ import shutil
 import sys
 import tempfile
 
-import nox
-from nox.command import CommandFailed
-from nox.logger import logger
+import nox  # pylint: disable=import-error
+from nox.command import CommandFailed  # pylint: disable=import-error
 
 
 IS_WINDOWS = sys.platform.lower().startswith("win")
@@ -53,7 +53,7 @@ nox.options.error_on_missing_interpreters = False
 
 
 @nox.session(python=("3", "3.5", "3.6", "3.7", "3.8", "3.9"))
-def tests(session):
+def tests(session):  # pylint: disable=too-many-branches
     """
     Run tests
     """
@@ -112,6 +112,7 @@ def tests(session):
         "-ra",
         "-s",
     ]
+    # pylint: disable=protected-access
     if session._runner.global_config.forcecolor:
         args.append("--color=yes")
     if not session.posargs:
@@ -121,6 +122,7 @@ def tests(session):
             if arg.startswith("--color") and session._runner.global_config.forcecolor:
                 args.remove("--color=yes")
             args.append(arg)
+    # pylint: enable=protected-access
 
     session.run("coverage", "run", "-m", "pytest", *args, env=env)
 
@@ -170,12 +172,8 @@ def _lint(session, rcfile, flags, paths):
     cmd_args = ["pylint", "--rcfile={}".format(rcfile)] + list(flags) + list(paths)
 
     stdout = tempfile.TemporaryFile(mode="w+b")
-    lint_failed = False
     try:
         session.run(*cmd_args, stdout=stdout)
-    except CommandFailed:
-        lint_failed = True
-        raise
     finally:
         stdout.seek(0)
         contents = stdout.read()
