@@ -17,4 +17,3 @@ except ImportError:
 except Exception:  # pylint: disable=broad-except
     traceback.print_exc(file=sys.stderr)
     sys.stderr.flush()
-    raise
