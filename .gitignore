@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Setuptools SCM generated version file
+coveragectx/version.py
+
+# Test artifacts
+artifacts/
